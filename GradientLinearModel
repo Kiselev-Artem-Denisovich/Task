@@ -1,0 +1,102 @@
+class GradientLinearModel():
+    def __init__(self, learning_rate = 0.01, epochs=1000, trig=False, batch_size=32, 
+                 regularization='elastic', alpha=0.1):
+        self.learning_rate = learning_rate
+        self.w = None
+        self.b = None
+        self.epochs = epochs
+        self.trig = trig
+        self.batch_size = batch_size
+        self.regularization = regularization
+        self.alpha = alpha
+
+    def fit(self, X, y):
+        m, n = X.shape
+        self.w = np.random.randn(n)
+        self.b = np.random.randn(1) 
+
+        loss_last = 50000
+        loss_list = []
+        
+        batch_size = self.batch_size
+
+        for epoch in range(self.epochs):
+            indices = np.random.permutation(m)
+            X_id = np.array(X)[indices]
+            y_id = np.array(y)[indices]
+
+            batch_size = self.batch_size
+
+            for i in range(0, m, batch_size):
+                end_idx = min(i + batch_size, m)
+                X_batch = X_id[i:end_idx]
+
+                batch_size_actual = len(X_batch)
+
+                # Сами расчеты градиентного спуска
+                y_pred = np.dot(X_batch, self.w) + self.b
+                errors = y_pred - y_id[i:end_idx]
+
+                dw = np.dot(X_batch.T, errors) / (batch_size_actual*2)
+                db = np.sum(errors) / (batch_size_actual*2)
+
+                # Реализациярегулизации
+                if self.regularization == 'l2':
+                    dw += (self.alpha/batch_size_actual) * self.w
+                elif self.regularization == 'l1':
+                    dw += (self.alpha/batch_size_actual) * np.sign(self.w)
+                elif self.regularization == 'elastic':
+                    dw += (self.alpha/(0.5 * batch_size_actual)) * np.sign(self.w) + (self.alpha/(0.5 * batch_size_actual)) * self.w
+                    
+                # Градиент по весам 
+                self.w -= dw * self.learning_rate
+                    # Градиент по смещению
+                self.b -= db * self.learning_rate
+
+            # Сохраняю список ошибок для истории графика и для сравнения
+            # Чтобы заранее остановить обучение и поиск w и b
+            err = root_mean_squared_error(np.dot(X, self.w), y)
+            loss_list.append(err)
+            if abs(loss_last - err) <= 1e-6:
+                break
+                
+            # Показываю обучение, если заранее написать True
+            if epoch % 100 == 0 and self.trig:
+                print(f'Epoch: {epoch}, w: {self.w}, b: {self.b}, RMSE: {round(err, 5)}, Loss: {np.sum(errors)}')
+            
+            loss_last = err
+
+
+    def predict(self, X):
+        return np.dot(X, self.w) + self.b
+    
+    def graph(self, y_test, y_progn):
+            mse = mean_squared_error(y_test, y_progn)
+            r2 = r2_score(y_test, y_progn)
+            rmse = root_mean_squared_error(y_test, y_progn)
+            mae = mean_absolute_error(y_test, y_progn)
+
+            plt.figure(figsize=(6, 6))
+
+            residuls = y_test - y_progn
+
+            fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(8,4));
+            axes[0].hist(residuls, bins=50);
+            axes[0].set_title('Гистограмма распределения остатков',fontweight="normal", color='black')
+            axes[0].set_xlabel('Остатки',fontweight="normal", color='black')
+
+            axes[1].scatter(y_progn, residuls);
+            axes[1].set_xlabel('Предсказания модели',fontweight="normal", color='black')
+            axes[1].set_ylabel('Остатки',fontweight="normal", color='black')
+            axes[1].set_title('Анализ дисперсии',fontweight="normal", color='black')
+
+            plt.grid(True)
+            plt.show();
+
+            print("RMSE:", round(rmse, 5))
+            print("MSE:", round(mse, 5))
+            print("MAE:", round(mae, 5))
+            print("R²:", round(r2, 3), end='\n\n')
+            
+            print('Описательная статистика ошибок')
+            print(pd.DataFrame(residuls).describe())
