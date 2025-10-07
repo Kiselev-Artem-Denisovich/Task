@@ -12,8 +12,11 @@ class GradientLinearModel():
 
     def fit(self, X, y):
         m, n = X.shape
-        self.w = np.random.randn(n)
+        self.w = np.random.randn(n) * 0.01
         self.b = np.random.randn(1) 
+
+        X = np.asarray(X, dtype=np.float32)
+        y = np.asarray(y, dtype=np.float32)
 
         loss_last = 50000
         loss_list = []
@@ -22,31 +25,31 @@ class GradientLinearModel():
 
         for epoch in range(self.epochs):
             indices = np.random.permutation(m)
-            X_id = np.array(X)[indices]
-            y_id = np.array(y)[indices]
 
             batch_size = self.batch_size
 
             for i in range(0, m, batch_size):
                 end_idx = min(i + batch_size, m)
-                X_batch = X_id[i:end_idx]
+                X_batch = X[indices[i:end_idx]] 
 
                 batch_size_actual = len(X_batch)
 
                 # Сами расчеты градиентного спуска
-                y_pred = np.dot(X_batch, self.w) + self.b
-                errors = y_pred - y_id[i:end_idx]
+                y_pred = X_batch @ self.w + self.b
+                errors = y_pred - y[indices[i:end_idx]]
 
-                dw = np.dot(X_batch.T, errors) / (batch_size_actual*2)
-                db = np.sum(errors) / (batch_size_actual*2)
+                dw = X_batch.T @ errors / batch_size_actual
+                db = np.sum(errors) / batch_size_actual
 
                 # Реализациярегулизации
                 if self.regularization == 'l2':
-                    dw += (self.alpha/batch_size_actual) * self.w
+                    dw += (self.alpha) * self.w
                 elif self.regularization == 'l1':
-                    dw += (self.alpha/batch_size_actual) * np.sign(self.w)
+                    dw += (self.alpha) * np.sign(self.w)
                 elif self.regularization == 'elastic':
-                    dw += (self.alpha/(0.5 * batch_size_actual)) * np.sign(self.w) + (self.alpha/(0.5 * batch_size_actual)) * self.w
+                    l1_term = (self.alpha * 0.5) * np.sign(self.w)
+                    l2_term = (self.alpha * 0.5) * self.w 
+                    dw += (l1_term + l2_term)
                     
                 # Градиент по весам 
                 self.w -= dw * self.learning_rate
@@ -55,20 +58,20 @@ class GradientLinearModel():
 
             # Сохраняю список ошибок для истории графика и для сравнения
             # Чтобы заранее остановить обучение и поиск w и b
-            err = root_mean_squared_error(np.dot(X, self.w), y)
-            loss_list.append(err)
-            if abs(loss_last - err) <= 1e-6:
+            current_loss = np.mean((X @ self.w + self.b - y) ** 2)
+            loss_list.append(current_loss)
+            if abs(loss_last - current_loss) <= 1e-6:
                 break
                 
             # Показываю обучение, если заранее написать True
             if epoch % 100 == 0 and self.trig:
-                print(f'Epoch: {epoch}, w: {self.w}, b: {self.b}, RMSE: {round(err, 5)}, Loss: {np.sum(errors)}')
+                print(f'Epoch: {epoch}, w: {self.w}, b: {self.b}, MSE: {round(current_loss, 5)}, Loss: {np.sum(errors)}')
             
-            loss_last = err
-
+            loss_last = current_loss
 
     def predict(self, X):
-        return np.dot(X, self.w) + self.b
+        X = np.asarray(X, dtype=np.float32)
+        return X @ self.w + self.b
     
     def graph(self, y_test, y_progn):
             mse = mean_squared_error(y_test, y_progn)
