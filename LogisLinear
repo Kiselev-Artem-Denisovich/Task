@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+
 from sklearn.metrics import (make_scorer,
                             accuracy_score, 
                             precision_score, 
@@ -11,14 +12,14 @@ from sklearn.metrics import (make_scorer,
                             roc_curve,
                             auc,
                             f1_score,
-                            classification_reporte
+                            classification_report
                             )
+from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
 
 
-
 class LogistRegress():
-    def __init__(self, learning_rate=0.01, epoch=100, decay_rate=0.99, batch_size=1000, thesdole=0.5, trig=True, alpha=0.1, regularization='elastic'):
+    def __init__(self, learning_rate=0.01, epoch=100, decay_rate=0.99, batch_size=32, thesdole=0.5, trig=True, regularization='elastic', alpha=0.1):
         self.w = None
         self.b = None
         self.learning_rate = learning_rate
@@ -27,8 +28,8 @@ class LogistRegress():
         self.batch_size = batch_size
         self.thesdole = thesdole
         self.trig = trig
-        self.alpha = alpha
         self.regularization = regularization
+        self.alpha=alpha
 
     def sigmoid(self, linear):
         z = np.clip(linear, -500, 500)
@@ -36,15 +37,12 @@ class LogistRegress():
         c = np.asarray(c, np.float32)
         return c
 
-    def compute_loss(self, y_pred, y_true):
-        epsilon = 1e-15
-        y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
-        return -np.mean(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
-
     def fit(self, X, y):
         m, n = X.shape
         self.w = np.random.randn(n).astype(np.float32) * 0.01
         self.b = np.zeros(1, dtype=np.float32)
+
+        dw = 0
 
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y, dtype=np.int32)
@@ -69,9 +67,9 @@ class LogistRegress():
 
                 errors = y_pred - y_batch
 
-                dw = (X_batch.T @ errors) / batch_size_actual
-                db = np.sum(errors) / batch_size_actual
-                
+                dw = (2 * X_batch.T @ errors) / batch_size_actual
+                db = (2 * np.sum(errors)) / batch_size_actual
+
                 # Реализациярегулизации
                 if self.regularization == 'l2':
                     dw += (self.alpha) * self.w
@@ -87,8 +85,8 @@ class LogistRegress():
 
             # Чтобы заранее остановить обучение и поиск w и b
             full_pred = self.sigmoid(X @ self.w + self.b)
-            current_loss = self.compute_loss(full_pred, y)
-            if abs(loss_last - current_loss) <= 1e-6:
+            current_loss = np.mean((full_pred - y) ** 2)
+            if abs(loss_last - current_loss) <= 1e-4:
                 break
                 
             if epoch % 10 == 0 and self.trig:
@@ -107,7 +105,7 @@ class LogistRegress():
         X =np.asarray(X, np.float32)
         y =np.asarray(y, np.int32)
 
-        if len(y) >= 100000:
+        if len(y) >= 1000000:
             _, X, _, y = train_test_split(X, y, train_size=0.1) 
 
         probas = self.sigmoid(X @ self.w + self.b).flatten()
@@ -120,7 +118,7 @@ class LogistRegress():
             f = f1_score(y, predicted, pos_label=1, zero_division=0)
             f1.append(f)
 
-        return threshold[np.argmax(np.array(f1))] + 0.06
+        return threshold[np.argmax(np.array(f1))]
 
     def predict(self, X):
         X = np.asarray(X, np.float32)
