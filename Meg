@@ -1,84 +1,88 @@
-def send_report():
-    importlib.reload(m)
-    m.times()
+class LogistRegress():
+    def __init__(self, learning_rate=0.01, epoch=100, decay_rate=0.99, batch_size=32, thesdole=0.5):
+        self.w = None
+        self.b = None
+        self.learning_rate = learning_rate
+        self.epoch = epoch
+        self.decay_rate = decay_rate
+        self.batch_size = batch_size
+        self.thesdole = thesdole
 
-    path_excel_yaroshenko_new = (r'\\Client\C$\Данные\Блокировка\Ярошенко\месячные_показатели\Выгрузка Агенты '
-                                 r'Директ {month} {year}.xlsx').format(
-        month=m.now_month, year=m.now_year)
-    path_excel_saenko_new = (r'\\Client\C$\Данные\Блокировка\Саенко\месячные_показатели\Выгрузка Индирект {month} '
-                             r'{year}.xlsx').format(
-        month=m.now_month, year=m.now_year)
+    def sigmoid(self, linear):
+        z = np.clip(linear, -500, 500)
+        return 1 / (1 + np.exp(-z))
 
-    if m.now_day == 3:
-        path_excel_yaroshenko_new = (r'\\Client\C$\Данные\Блокировка\Ярошенко\месячные_показатели\Выгрузка Агенты '
-                                     r'Директ {month} {year}.xlsx').format(
-            month=m.month[m.data[1] - 1], year=m.now_year)
-        path_excel_saenko_new = (r'\\Client\C$\Данные\Блокировка\Саенко\месячные_показатели\Выгрузка Индирект {month} '
-                                 r'{year}.xlsx').format(
-            month=m.month[m.data[1] - 1], year=m.now_year)
+    def fit(self, X, y):
+        m, n = X.shape
+        dw = np.random.randn(n, 1).astype(np.float32) * 0.01
+        db = np.random.randn(1).astype(np.float32) * 0.01
+
+        X = np.asarray(X, dtype=np.float32)
+        y = np.asarray(y, dtype=np.float32)
+
+        current_lr = self.learning_rate
+
+        indices = np.arange(m)
+
+        loss_last = 50000
+        
+        batch_size = self.batch_size
+
+        for epoch in range(self.epoch):
+            np.random.choice(indices)
+            for i in range(0, m, batch_size):
+                end_idx = min(i + batch_size, m)
+                X_batch = X[indices[i:end_idx]]
+                batch_size_actual = len(X_batch)
+
+                linear = X_batch @ self.w + self.b
+                y_pred = self.sigmoid(linear)
+
+                errors = y_pred - y[indices[i:end_idx]]
+
+                dw = X_batch.T * errors / batch_size_actual
+                db = np.sum(errors) / batch_size_actual
+
+                self.w += dw * current_lr
+                self.b += db * current_lr
+
+            # Чтобы заранее остановить обучение и поиск w и b
+            current_loss = np.mean((X @ self.w + self.b - y) ** 2)
+            if abs(loss_last - current_loss) <= 1e-4:
+                break
+                
+            # Показываю обучение, если заранее написать True
+            if epoch % 10 == 0 and self.trig:
+                print(f'Epoch: {epoch}, w: {self.w}, b: {self.b}, MSE: {round(current_loss, 5)}, Loss: {np.sum(errors)}')
+
+            # Адаптивный learning rate
+            if epoch > 0 and epoch % 10 == 0:
+                current_lr *= self.decay_rate
+                
+            loss_last = current_loss
+
+        self.thesdole = self._count_thesdole(X, y)
 
 
-    print('Работа началась')
-    df_yar = sr.sql_yaroshenko()
-    df_sae = sr.sql_saenko()
+    def _count_thesdole(self, X, y):
+        X =np.asarray(X, np.float32)
+        y =np.asarray(y, np.float32)
 
-    path_excel_yaroshenko = r'\\Client\C$\Данные\Блокировка\Ярошенко\Выгрузка Агенты Директ.xlsx'
-    path_excel_saenko = r'\\Client\C$\Данные\Блокировка\Саенко\Выгрузка Индирект.xlsx'
+        if len(y) >= 100000:
+            _, X, _, y = train_test_split(X, y, train_size=0.1) 
 
-    try:
-        wue.write_update_excel(df=df_yar, path=path_excel_yaroshenko, sheet='данные')
-        wue.write_update_excel(df=df_sae, path=path_excel_saenko, sheet='данные')
+        probas = self.sigmoid(X @ self.w + self.b)
+        threshold = self.thesdole
 
-        wue.copy_delete_excel(old_excel_path=path_excel_yaroshenko, new_excel_path=path_excel_yaroshenko_new)
-        wue.copy_delete_excel(old_excel_path=path_excel_saenko, new_excel_path=path_excel_saenko_new)
-    except:
-        path_excel_yaroshenko_new = (
-            r'H:\Данные\Блокировка\Ярошенко\Выгрузка Агенты Директ {month} {year}.xlsx').format(
-            month=m.now_month, year=m.now_year)
-        path_excel_saenko_new = (
-            r'H:\Данные\Блокировка\Саенко\Выгрузка Индирект {month} {year}.xlsx').format(
-            month=m.now_month, year=m.now_year)
+        f1 = []
 
-        if m.now_day == 3:
-            path_excel_yaroshenko_new = (
-                r'H:\Данные\Блокировка\Ярошенко\Выгрузка Агенты Директ {month} {year}.xlsx').format(
-                month=m.month[m.data[1] - 1], year=m.now_year)
-            path_excel_saenko_new = (
-                r'H:\Данные\Блокировка\Саенко\Выгрузка Индирект {month} {year}.xlsx').format(
-                month=m.month[m.data[1] - 1], year=m.now_year)
+        for p in threshold:
+            predicted = (probas >= p).astype(int)
+            f1.append(f1_score(y, predicted, pos_label=1, zero_division=1))
 
-        wue.write_update_excel(df=df_yar, path=path_excel_yaroshenko, sheet='данные')
-        wue.write_update_excel(df=df_sae, path=path_excel_saenko, sheet='данные')
+        return threshold[np.argmax(np.array(f1))]
 
-        wue.copy_delete_excel(old_excel_path=path_excel_yaroshenko, new_excel_path=path_excel_yaroshenko_new)
-        wue.copy_delete_excel(old_excel_path=path_excel_saenko, new_excel_path=path_excel_saenko_new)
-
-    outlook.mail_excel(mail_to='artem.d.kiselev@megafon.ru',
-
-                       mail_cc='artem.d.kiselev@megafon.ru',
-
-                       subject='Блокировки дашборд',
-
-                       path_excel=path_excel_yaroshenko_new,
-
-                       body=f'Добрый день, коллеги. \nВысылаю данные по {m.now_day}.{m.tm_mon}.\n\nКиселев Артем '
-                            'Денисович\nМенеджер по аналитике и отчетности продаж\nФинансы - Отдел аналитики розничных каналов '
-                            'продаж массового рынка'
-                       )
-
-    outlook.mail_excel(
-        mail_to='artem.d.kiselev@megafon.ru',
-
-        mail_cc='artem.d.kiselev@megafon.ru',
-
-        subject='Блокировки дашборд',
-
-        path_excel=path_excel_saenko_new,
-
-        body=f'Добрый день, коллеги. \nВысылаю данные по {m.now_day}.{m.tm_mon}.\n\nКиселев Артем '
-             'Денисович\nМенеджер по аналитике и отчетности продаж\nФинансы - Отдел аналитики розничных каналов '
-             'продаж массового рынка')
-
-    print('Файлы обновленны')
-    gc.collect()
-    print('Файл отработал')
+    def predict(self, X):
+        X = np.asarray(X, np.float32)
+        prob = self.sigmoid(X @ self.w + self.b)
+        return (prob >= self.thesdole).astype('int')
