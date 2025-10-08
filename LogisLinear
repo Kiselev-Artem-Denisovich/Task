@@ -1,0 +1,153 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.metrics import (make_scorer,
+                            accuracy_score, 
+                            precision_score, 
+                            recall_score, 
+                            confusion_matrix,
+                            roc_auc_score,
+                            roc_curve,
+                            auc,
+                            f1_score,
+                            classification_reporte
+                            )
+from sklearn.model_selection import train_test_split
+
+
+
+class LogistRegress():
+    def __init__(self, learning_rate=0.01, epoch=100, decay_rate=0.99, batch_size=1000, thesdole=0.5, trig=True, alpha=0.1, regularization='elastic'):
+        self.w = None
+        self.b = None
+        self.learning_rate = learning_rate
+        self.epoch = epoch
+        self.decay_rate = decay_rate
+        self.batch_size = batch_size
+        self.thesdole = thesdole
+        self.trig = trig
+        self.alpha = alpha
+        self.regularization = regularization
+
+    def sigmoid(self, linear):
+        z = np.clip(linear, -500, 500)
+        c = 1 / (1 + np.exp(-z))
+        c = np.asarray(c, np.float32)
+        return c
+
+    def compute_loss(self, y_pred, y_true):
+        epsilon = 1e-15
+        y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
+        return -np.mean(y_true * np.log(y_pred) + (1 - y_true) * np.log(1 - y_pred))
+
+    def fit(self, X, y):
+        m, n = X.shape
+        self.w = np.random.randn(n).astype(np.float32) * 0.01
+        self.b = np.zeros(1, dtype=np.float32)
+
+        X = np.asarray(X, dtype=np.float32)
+        y = np.asarray(y, dtype=np.int32)
+       
+        current_lr = self.learning_rate
+
+        indices = np.arange(m)
+
+        loss_last = 50000
+        
+        batch_size = self.batch_size
+
+        for epoch in range(self.epoch):
+            np.random.choice(indices)
+            for i in range(0, m, batch_size):
+                end_idx = min(i + batch_size, m)
+                X_batch = X[indices[i:end_idx]]
+                y_batch = y[indices[i:end_idx]]
+                batch_size_actual = len(X_batch)
+
+                y_pred = self.sigmoid(X_batch @ self.w + self.b)
+
+                errors = y_pred - y_batch
+
+                dw = (X_batch.T @ errors) / batch_size_actual
+                db = np.sum(errors) / batch_size_actual
+                
+                # Реализациярегулизации
+                if self.regularization == 'l2':
+                    dw += (self.alpha) * self.w
+                elif self.regularization == 'l1':
+                    dw += (self.alpha) * np.sign(self.w)
+                elif self.regularization == 'elastic':
+                    l1_term = (self.alpha * 0.5) * np.sign(self.w)
+                    l2_term = (self.alpha * 0.5) * self.w 
+                    dw += (l1_term + l2_term)
+
+                self.w -= current_lr * dw
+                self.b -= current_lr * db
+
+            # Чтобы заранее остановить обучение и поиск w и b
+            full_pred = self.sigmoid(X @ self.w + self.b)
+            current_loss = self.compute_loss(full_pred, y)
+            if abs(loss_last - current_loss) <= 1e-6:
+                break
+                
+            if epoch % 10 == 0 and self.trig:
+                print(f'Epoch: {epoch}, w: {self.w}, b: {self.b}, MSE: {round(current_loss, 5)}, Loss: {np.sum(errors)}')
+
+            # Адаптивный learning rate
+            if epoch > 0 and epoch % 10 == 0:
+                current_lr *= self.decay_rate
+                
+            loss_last = current_loss
+
+        self.thesdole = self._count_thesdole(X, y)
+
+
+    def _count_thesdole(self, X, y):
+        X =np.asarray(X, np.float32)
+        y =np.asarray(y, np.int32)
+
+        if len(y) >= 100000:
+            _, X, _, y = train_test_split(X, y, train_size=0.1) 
+
+        probas = self.sigmoid(X @ self.w + self.b).flatten()
+        threshold =  np.linspace(0, 1, 100)
+
+        f1 = []
+
+        for p in threshold:
+            predicted = (probas >= p).astype(int)
+            f = f1_score(y, predicted, pos_label=1, zero_division=0)
+            f1.append(f)
+
+        return threshold[np.argmax(np.array(f1))] + 0.06
+
+    def predict(self, X):
+        X = np.asarray(X, np.float32)
+        prob = self.sigmoid(X @ self.w + self.b).flatten()
+
+        return (prob >= self.thesdole).astype('int')
+    
+    def write_graph(self, y_train, y_pred):
+            # Расчет ошибок
+            acc = accuracy_score(y_train, y_pred)  
+            precision = precision_score(y_train, y_pred) 
+            recall = recall_score(y_train, y_pred)
+            auc = roc_auc_score(y_train, y_pred)
+            f1 =  f1_score(y_train, y_pred)
+
+            # Визуализация матрицы ошибок
+            plt.figure(figsize=(10, 8))
+            cm = confusion_matrix(y_train, y_pred)
+
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues_r')
+            plt.title('Матрица ошибок', fontsize=16, fontweight='normal', color='black')
+            plt.ylabel('Реальность', fontsize=16, fontweight='normal', color='black')
+            plt.xlabel('Прогнозы', fontsize=16, fontweight='normal', color='black')
+            plt.show();
+
+            print('Accuracy = ', round(acc, 3))
+            print('Precision = ', round(precision, 3))
+            print('Recall = ', round(recall, 3))
+            print('ROC_AUC = ', round(auc, 3))
+            print('F1 = ', round(f1, 3))
