@@ -1,0 +1,84 @@
+def send_report():
+    importlib.reload(m)
+    m.times()
+
+    path_excel_yaroshenko_new = (r'\\Client\C$\Данные\Блокировка\Ярошенко\месячные_показатели\Выгрузка Агенты '
+                                 r'Директ {month} {year}.xlsx').format(
+        month=m.now_month, year=m.now_year)
+    path_excel_saenko_new = (r'\\Client\C$\Данные\Блокировка\Саенко\месячные_показатели\Выгрузка Индирект {month} '
+                             r'{year}.xlsx').format(
+        month=m.now_month, year=m.now_year)
+
+    if m.now_day == 3:
+        path_excel_yaroshenko_new = (r'\\Client\C$\Данные\Блокировка\Ярошенко\месячные_показатели\Выгрузка Агенты '
+                                     r'Директ {month} {year}.xlsx').format(
+            month=m.month[m.data[1] - 1], year=m.now_year)
+        path_excel_saenko_new = (r'\\Client\C$\Данные\Блокировка\Саенко\месячные_показатели\Выгрузка Индирект {month} '
+                                 r'{year}.xlsx').format(
+            month=m.month[m.data[1] - 1], year=m.now_year)
+
+
+    print('Работа началась')
+    df_yar = sr.sql_yaroshenko()
+    df_sae = sr.sql_saenko()
+
+    path_excel_yaroshenko = r'\\Client\C$\Данные\Блокировка\Ярошенко\Выгрузка Агенты Директ.xlsx'
+    path_excel_saenko = r'\\Client\C$\Данные\Блокировка\Саенко\Выгрузка Индирект.xlsx'
+
+    try:
+        wue.write_update_excel(df=df_yar, path=path_excel_yaroshenko, sheet='данные')
+        wue.write_update_excel(df=df_sae, path=path_excel_saenko, sheet='данные')
+
+        wue.copy_delete_excel(old_excel_path=path_excel_yaroshenko, new_excel_path=path_excel_yaroshenko_new)
+        wue.copy_delete_excel(old_excel_path=path_excel_saenko, new_excel_path=path_excel_saenko_new)
+    except:
+        path_excel_yaroshenko_new = (
+            r'H:\Данные\Блокировка\Ярошенко\Выгрузка Агенты Директ {month} {year}.xlsx').format(
+            month=m.now_month, year=m.now_year)
+        path_excel_saenko_new = (
+            r'H:\Данные\Блокировка\Саенко\Выгрузка Индирект {month} {year}.xlsx').format(
+            month=m.now_month, year=m.now_year)
+
+        if m.now_day == 3:
+            path_excel_yaroshenko_new = (
+                r'H:\Данные\Блокировка\Ярошенко\Выгрузка Агенты Директ {month} {year}.xlsx').format(
+                month=m.month[m.data[1] - 1], year=m.now_year)
+            path_excel_saenko_new = (
+                r'H:\Данные\Блокировка\Саенко\Выгрузка Индирект {month} {year}.xlsx').format(
+                month=m.month[m.data[1] - 1], year=m.now_year)
+
+        wue.write_update_excel(df=df_yar, path=path_excel_yaroshenko, sheet='данные')
+        wue.write_update_excel(df=df_sae, path=path_excel_saenko, sheet='данные')
+
+        wue.copy_delete_excel(old_excel_path=path_excel_yaroshenko, new_excel_path=path_excel_yaroshenko_new)
+        wue.copy_delete_excel(old_excel_path=path_excel_saenko, new_excel_path=path_excel_saenko_new)
+
+    outlook.mail_excel(mail_to='artem.d.kiselev@megafon.ru',
+
+                       mail_cc='artem.d.kiselev@megafon.ru',
+
+                       subject='Блокировки дашборд',
+
+                       path_excel=path_excel_yaroshenko_new,
+
+                       body=f'Добрый день, коллеги. \nВысылаю данные по {m.now_day}.{m.tm_mon}.\n\nКиселев Артем '
+                            'Денисович\nМенеджер по аналитике и отчетности продаж\nФинансы - Отдел аналитики розничных каналов '
+                            'продаж массового рынка'
+                       )
+
+    outlook.mail_excel(
+        mail_to='artem.d.kiselev@megafon.ru',
+
+        mail_cc='artem.d.kiselev@megafon.ru',
+
+        subject='Блокировки дашборд',
+
+        path_excel=path_excel_saenko_new,
+
+        body=f'Добрый день, коллеги. \nВысылаю данные по {m.now_day}.{m.tm_mon}.\n\nКиселев Артем '
+             'Денисович\nМенеджер по аналитике и отчетности продаж\nФинансы - Отдел аналитики розничных каналов '
+             'продаж массового рынка')
+
+    print('Файлы обновленны')
+    gc.collect()
+    print('Файл отработал')
